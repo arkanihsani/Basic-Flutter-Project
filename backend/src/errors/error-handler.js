@@ -1,5 +1,5 @@
-import statusCodes from "./status-codes.js";
-import BaseError from "./base-error.js";
+import StatusCodes from './status-codes.js'
+import BaseError from './base-error.js'
 
 const errorHandler = (err, req, res, next) => {
   if (err instanceof BaseError) {
@@ -7,13 +7,14 @@ const errorHandler = (err, req, res, next) => {
       success: false,
       status: err.errorName,
       message: err.message,
-    });
+    })
   }
-  res.status(statusCodes.INTERNAL_SERVER.code).json({
-    success: false,
-    status: "Internal Server Error",
-    message: err.message || statusCodes.INTERNAL_SERVER.message,
-  });
-};
 
-export default errorHandler;
+  res.status(StatusCodes.INTERNAL_SERVER_ERROR.code).json({
+    success: false,
+    status: 'Internal Server Error',
+    message: err.message || StatusCodes.INTERNAL_SERVER_ERROR.message,
+  })
+}
+
+export default errorHandler
