@@ -22,7 +22,7 @@ export const createRecordSchema = Joi.object({
       "any.required": "Description is required"
     }),
   type: Joi.string()
-    .valid("income", "expense")
+    .valid("INCOME", "EXPENDITURE")
     .required()
     .messages({
       "string.base": "Type must be a string",
@@ -51,7 +51,7 @@ export const updateRecordSchema = Joi.object({
       "string.max": "Description must not exceed 255 characters"
     }),
   type: Joi.string()
-    .valid("income", "expense")
+    .valid("INCOME", "EXPENDITURE")
     .optional()
     .messages({
       "string.base": "Type must be a string",
