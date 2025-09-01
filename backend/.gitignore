@@ -1,8 +1,8 @@
-# Keep environment variables out of version control
+# Environment variables
 .env
 
-# Dependency directories
-node_modules/
+# Dependencies
+/node_modules
 
-# Local development
-package-lock.json
+# Package manager lock files
+/package-lock.json
