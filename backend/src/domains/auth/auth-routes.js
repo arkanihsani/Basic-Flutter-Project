@@ -4,9 +4,7 @@ import validate from "../../middlewares/request-validator.js";
 import {
   loginSchema,
   registerSchema,
-  getMeSchema,
-  updateProfileSchema,
-  deleteAccountSchema,
+  updateProfileSchema 
 } from "./auth-schema.js";
 import authToken from "../../middlewares/auth-token.js";
 
@@ -29,7 +27,6 @@ class AuthRoutes {
 
     this.router.get("/me", [
       authToken,
-      validate(getMeSchema),
       AuthController.me
     ]);
 
@@ -41,7 +38,6 @@ class AuthRoutes {
 
     this.router.delete("/me", [
       authToken,
-      validate(deleteAccountSchema),
       AuthController.delete
     ]);
   }

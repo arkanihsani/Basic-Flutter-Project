@@ -6,135 +6,165 @@ import logger from "../../utils/logger.js";
 
 class AuthService {
   async login(email, password) {
-    logger.info(`DB: findUnique user by email: ${email}`);
-    const user = await db.user.findUnique({ where: { email } });
-    if (!user) {
-      logger.warn(`Login failed: user not found for email ${email}`);
-      throw BaseError.notFound("User not found");
+    try {
+      // Add email sanitization
+      const trimmedEmail = email.toLowerCase().trim();
+      
+      logger.info(`DB: findUnique user by email: ${trimmedEmail}`);
+      const user = await db.user.findUnique({ where: { email: trimmedEmail } });
+      
+      if (!user) {
+        logger.warn(`Login failed: user not found for email ${trimmedEmail}`);
+        throw BaseError.notFound("User not found");
+      }
+
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
+        logger.warn(`Login failed: invalid password for email ${trimmedEmail}`);
+        throw BaseError.unauthorized("Invalid password");
+      }
+
+      logger.info(`Login success for user: ${trimmedEmail}`);
+      const token = jwt.sign(
+        { id: user.id, email: user.email },
+        process.env.JWT_SECRET,
+        { expiresIn: "1d" }
+      );
+
+      return { user, token };
+    } catch (error) {
+      logger.error(`Login error for ${email}: ${error.message}`);
+      throw error;
     }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      logger.warn(`Login failed: invalid password for email ${email}`);
-      throw BaseError.unauthorized("Invalid password");
-    }
-
-    logger.info(`Login success for user: ${email}`);
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
-
-    return { user, token };
   }
 
-  async register({ name, email, password }) {
-    logger.info(`DB: findUnique user by email: ${email}`);
-    const existing = await db.user.findUnique({ where: { email } });
-    if (existing) {
-      logger.warn(`Register failed: email already registered (${email})`);
-      throw BaseError.badRequest("Email already registered");
+  async register({ username, email, password }) {
+    try {
+      const trimmedEmail = email.toLowerCase().trim();
+      const trimmedUsername = username.trim();
+
+      logger.info(`DB: findUnique user by email: ${trimmedEmail}`);
+      const existing = await db.user.findUnique({ where: { email: trimmedEmail } });
+      
+      if (existing) {
+        logger.warn(`Register failed: email already registered (${trimmedEmail})`);
+        throw BaseError.badRequest("Email already registered");
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      logger.info(`DB: create user: ${trimmedEmail}`);
+      const user = await db.user.create({
+        data: {
+          username: trimmedUsername,
+          email: trimmedEmail,
+          password: hashedPassword,
+        },
+      });
+
+      logger.info(`Register success for user: ${trimmedEmail}`);
+      return {
+        user
+      };
+    } catch (error) {
+      logger.error(`Registration error for ${trimmedEmail || email}: ${error.message}`);
+      throw error;
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    logger.info(`DB: create user: ${email}`);
-    const user = await db.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-      },
-    });
-
-    logger.info(`Register success for user: ${email}`);
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      created_at: user.created_at,
-      updated_at: user.updated_at,
-    };
   }
 
   async me(id) {
-    logger.info(`DB: findUnique user by id: ${id}`);
-    const user = await db.user.findUnique({ where: { id } });
-    if (!user) {
-      logger.warn(`User not found for id: ${id}`);
-      throw BaseError.notFound("User not found");
+    try {
+      logger.info(`DB: findUnique user by id: ${id}`);
+      const user = await db.user.findUnique({ where: { id } });
+      
+      if (!user) {
+        logger.warn(`User not found for id: ${id}`);
+        throw BaseError.notFound("User not found");
+      }
+
+      return {
+        user
+      };
+    } catch (error) {
+      logger.error(`Get user profile error for ${id}: ${error.message}`);
+      throw error;
     }
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      created_at: user.created_at,
-      updated_at: user.updated_at,
-    };
   }
 
-  async update(id, { email, name, new_password }) {
-    logger.info(`DB: findUnique user by id: ${id}`);
-    const user = await db.user.findUnique({ where: { id } });
-    if (!user) {
-      logger.warn(`User not found for id: ${id}`);
-      throw BaseError.notFound("User not found");
-    }
-
-    if (email && email !== user.email) {
-      const existing = await db.user.findUnique({ where: { email } });
-      if (existing) {
-        logger.warn(`Update failed: email already registered (${email})`);
-        throw BaseError.badRequest("Email already registered");
+  async update(id, { email, username, new_password }) {
+    try {
+      logger.info(`DB: findUnique user by id: ${id}`);
+      const user = await db.user.findUnique({ where: { id } });
+      
+      if (!user) {
+        logger.warn(`User not found for id: ${id}`);
+        throw BaseError.notFound("User not found");
       }
+
+      // Sanitize inputs
+      const data = {};
+      
+      if (email) {
+        const trimmedEmail = email.toLowerCase().trim();
+        if (trimmedEmail !== user.email) {
+          const existing = await db.user.findUnique({ where: { email: trimmedEmail } });
+          if (existing) {
+            logger.warn(`Update failed: email already registered (${trimmedEmail})`);
+            throw BaseError.badRequest("Email already registered");
+          }
+          data.email = trimmedEmail;
+        }
+      }
+
+      if (username) {
+        data.username = username.trim();
+      }
+
+      if (new_password) {
+        const hashedPassword = await bcrypt.hash(new_password, 12);
+        data.password = hashedPassword;
+        logger.info(`Password updated for user: ${id}`);
+      }
+
+      logger.info(`DB: update user by id: ${id}`);
+      const updated = await db.user.update({
+        where: { id },
+        data,
+      });
+
+      logger.info(`Update success for user: ${id}`);
+      return {
+        updated
+      };
+    } catch (error) {
+      logger.error(`Update user error for ${id}: ${error.message}`);
+      throw error;
     }
-
-    logger.info(`DB: update user by id: ${id}`);
-    const data = {};
-    if (email) data.email = email;
-    if (name) data.name = name;
-    if (new_password) {
-      const hashedPassword = await bcrypt.hash(new_password, 10);
-      data.password = hashedPassword;
-      logger.info(`Password updated for user: ${id}`);
-    }
-
-    const updated = await db.user.update({
-      where: { id },
-      data,
-    });
-
-    logger.info(`Update success for user: ${id}`);
-    return {
-      id: updated.id,
-      name: updated.name,
-      email: updated.email,
-      created_at: updated.created_at,
-      updated_at: updated.updated_at,
-    };
   }
 
   async delete(id) {
-    logger.info(`DB: findUnique user by id: ${id}`);
-    const user = await db.user.findUnique({ where: { id } });
-    if (!user) {
-      logger.warn(`User not found for id: ${id}`);
-      throw BaseError.notFound("User not found");
-    }
+    try {
+      logger.info(`DB: findUnique user by id: ${id}`);
+      const user = await db.user.findUnique({ where: { id } });
+      
+      if (!user) {
+        logger.warn(`User not found for id: ${id}`);
+        throw BaseError.notFound("User not found");
+      }
 
-    logger.info(`DB: delete user by id: ${id}`);
-    const deleted = await db.user.delete({
-      where: { id },
-    });
-    logger.info(`Delete success for user: ${id}`);
-    return {
-      id: deleted.id,
-      name: deleted.name,
-      email: deleted.email,
-      created_at: deleted.created_at,
-      updated_at: deleted.updated_at,
-    };
+      logger.info(`DB: delete user by id: ${id}`);
+      const deleted = await db.user.delete({
+        where: { id },
+      });
+      
+      logger.info(`Delete success for user: ${id}`);
+      return {
+        deleted
+      };
+    } catch (error) {
+      logger.error(`Delete user error for ${id}: ${error.message}`);
+      throw error;
+    }
   }
 }
 
